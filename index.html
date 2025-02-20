@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+    <title>Weather Station</title>
+   
+    <link href="readable.css" rel="stylesheet">
+    <link href="bootstrap-responsive.css" rel="stylesheet">
+
+    <style>
+        body {
+            background-color: lightblue;
+        }
+
+        /* Sun Animation */
+        @keyframes sunMove {
+            0% { transform: translateY(-50px); opacity: 0.8; }
+            50% { transform: translateY(0px); opacity: 1; }
+            100% { transform: translateY(20px); opacity: 0.8; }
+        }
+        #sun {
+            position: fixed;
+            top: 50px;
+            right: 50px;
+            width: 80px;
+            height: 80px;
+            background: yellow;
+            border-radius: 50%;
+            box-shadow: 0 0 50px rgba(255, 223, 0, 0.8);
+            animation: sunMove 5s ease-in-out infinite alternate;
+        }
+
+        /* Rain Animation */
+        @keyframes rain {
+            0% { transform: translateY(0px); opacity: 1; }
+            100% { transform: translateY(100vh); opacity: 0; }
+        }
+        .rain {
+            position: fixed;
+            top: 0;
+            left: 50%;
+            width: 2px;
+            height: 10px;
+            background: rgba(255, 255, 255, 0.6);
+            animation: rain 1s linear infinite;
+        }
+
+        /* Speak Button */
+        #speakBtn {
+            margin-top: 10px;
+            padding: 10px 20px;
+            background: green;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            border-radius: 5px;
+        }
+
+        #speakBtn:hover {
+            background: darkgreen;
+        }
+
+        /* Map Container */
+        #map_canvas {
+            width: 100%;
+            height: 300px;
+            background: #ddd; /* Placeholder background */
+        }
+    </style>
+
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAIAdUk3kQA9ddDEJvDbuIPIbEGvqAnhaA&callback=initialize" async defer></script>
+</head>
+
+<body onload="initialize()">
+    <div class="container">
+        <div class="row" style="height:20px"></div>
+        <div class="row">
+            <div class="span12">
+                <center><h1>Agri Cloud Sense For Enclosed Farming</h1></center>
+                <br>
+                <h3>Lonavala</h3>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="span6">
+                <div class="row">
+                    <div class="span3"><h4>Temperature</h4></div>
+                    <div class="span3"><h4 id="temperature">Loading...</h4></div>
+                </div>
+                <hr/>
+
+                <div class="row">
+                    <div class="span3"><h4>Humidity</h4></div>
+                    <div class="span3"><h4 id="humidity">Loading...</h4></div>
+                </div>
+                <hr/>
+
+                <div class="row">
+                    <div class="span3"><h4>Pressure</h4></div>
+                    <div class="span3"><h4 id="pressure">Loading...</h4></div>
+                </div>
+                <hr/>
+
+                <div class="row">
+                    <div class="span3"><h4>Light Sensor</h4></div>
+                    <div class="span3"><h4 id="light">Loading...</h4></div>
+                </div>
+
+                <button id="speakBtn">🔊 Speak Weather Data</button>
+            </div>
+
+            <div class="span6" style="height: 435px">
+                <b>Location:</b> <span id="location-name">Detecting...</span> 
+                <b>Exposure:</b> Outdoor <b>Disposition:</b> Fixed
+                <div class="well">
+                    <div id="map_canvas"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+
+    <script>
+        var channelID = 2833450; // Replace with your ThingSpeak Channel ID
+        var apiKey = "C0E3DPOU280427AG"; // Replace with your Read API Key
+        var speechEnabled = false; // Speech flag
+
+        function fetchWeatherData() {
+            $.getJSON(`https://api.thingspeak.com/channels/${channelID}/feeds/last.json?api_key=${apiKey}`, function(data) {
+                var temp = data.field1 + "°C";
+                var humidity = data.field2 + "%";
+                var pressure = data.field3 + " Pa";
+                var light = data.field4 + " L";
+
+                $("#temperature").html(temp);
+                $("#humidity").html(humidity);
+                $("#pressure").html(pressure);
+                $("#light").html(light);
+
+                // Remove existing weather effects
+                $(".rain").remove();
+                $("#sun").remove();
+
+                // Show effects based on temperature
+                if (data.field1 < 10) {
+                    createRain();
+                } else {
+                    let sun = document.createElement("div");
+                    sun.id = "sun";
+                    document.body.appendChild(sun);
+                }
+
+                if (speechEnabled) {
+                    speakWeatherData(temp, humidity, pressure, light);
+                }
+            });
+        }
+
+        function createRain() {
+            for (let i = 0; i < 100; i++) {
+                let drop = document.createElement("div");
+                drop.classList.add("rain");
+                drop.style.left = Math.random() * window.innerWidth + "px";
+                drop.style.animationDuration = Math.random() * 0.5 + 0.5 + "s";
+                document.body.appendChild(drop);
+
+                setTimeout(() => drop.remove(), 1000);
+            }
+          
+        }
+
+         function speakWeatherData(temp, humidity, pressure, light) {
+            var text = `The current temperature is ${temp}. Humidity is ${humidity}. Pressure is ${pressure}. Light intensity is ${light}.`;
+            var speech = new SpeechSynthesisUtterance(text);
+            speech.lang = "en-US";
+            window.speechSynthesis.speak(speech);
+        }
+
+        // Toggle Speech on/off
+        document.getElementById("speakBtn").addEventListener("click", function() {
+            speechEnabled = !speechEnabled;
+            this.innerText = speechEnabled ? "🔇 Stop Speaking" : "🔊 Speak Weather Data";
+        });
+
+        // Fetch data every 15 seconds (ThingSpeak updates every 15s)
+        setInterval(fetchWeatherData, 15000);
+        fetchWeatherData(); // Fetch data on page load
+
+        // Initialize Google Map with Geolocation
+        function initialize() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(function(position) {
+                    var latlng = new google.maps.LatLng(position.coords.latitude, position.coords.longitude);
+                    var mapOptions = {
+                        zoom: 14,
+                        center: latlng,
+                        mapTypeId: google.maps.MapTypeId.ROADMAP
+                    };
+                    var map = new google.maps.Map(document.getElementById("map_canvas"), mapOptions);
+                    var marker = new google.maps.Marker({
+                        position: latlng,
+                        map: map,
+                        title: "Your Location"
+                    });
+
+                    document.getElementById("location-name").innerText = `Lat: ${position.coords.latitude.toFixed(4)}, Lon: ${position.coords.longitude.toFixed(4)}`;
+                }, function() {
+                    alert("Geolocation failed. Please enable location services.");
+                });
+            } else {
+                alert("Geolocation is not supported by this browser.");
+            }
+        }
+    </script>
+</body>
+</html>
+
+
